@@ -1,54 +1,124 @@
-# IARA: IA atendente para loja física (MVP)
+<div align="center">
 
-A IARA vê a loja por uma câmera, cumprimenta quem entra, conversa por voz com o cliente no balcão (pt-BR) e avisa o dono em situações anormais. O mesmo código roda no PC de desenvolvimento (webcam) e na loja (câmera IP por RTSP). A troca é **só pelo `.env`**.
+# 🔵 IARA
 
+**IA atendente para loja física: vê quem entra, cumprimenta, conversa por voz no balcão e avisa o dono.**
+
+![Python](https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white)
+![OpenAI Realtime](https://img.shields.io/badge/voz-OpenAI%20Realtime-412991?logo=openai&logoColor=white)
+![ONNX Runtime](https://img.shields.io/badge/vis%C3%A3o-YOLOX%20%2B%20ONNX-005CED)
+![LGPD](https://img.shields.io/badge/privacidade-nada%20%C3%A9%20gravado-2ea44f)
+![Status](https://img.shields.io/badge/status-MVP-orange)
+
+</div>
+
+---
+
+A IARA observa a loja por uma câmera, reconhece quando alguém entra, cumprimenta em português e conversa por voz com o cliente no balcão. Ela responde sobre horário, produtos, preços e pagamento, e chama uma pessoa quando não sabe a resposta. Se um cliente fica esperando sem atendimento, ela avisa o dono.
+
+O mesmo código roda no PC de desenvolvimento (webcam) e na loja (câmera IP por RTSP). A troca é feita **só pelo `.env`**.
+
+## ✨ Destaques
+
+| | |
+|---|---|
+| 🎙️ **Conversa natural** | Voz pelo OpenAI Realtime via WebRTC, com cancelamento de eco do Chrome: dá para interromper a IA no meio da fala. |
+| 👀 **Visão local e barata** | Detecção de pessoas com YOLOX-nano no ONNX Runtime, só CPU, a 2 quadros por segundo. As imagens só vão para a IA quando necessário. |
+| 🗺️ **Zonas configuráveis** | Porta, balcão e área do atendente desenhadas como polígonos no `config.yaml`, com calibração visual no painel de debug. |
+| 🔔 **Avisos inteligentes** | Cliente esperando sem atendimento, pessoa parada há muito tempo, pedido para falar com alguém. |
+| 🔵 **Interface viva** | Esfera animada em tela cheia que reage à amplitude real do áudio: ociosa, ouvindo, pensando e falando. |
+| 🔒 **Privacidade primeiro** | Nada de áudio, vídeo ou transcrição é gravado. A chave da API nunca sai do backend. |
+| 💸 **Custo sob controle** | Contagem de tokens e custo do dia; a sessão de voz fecha sozinha com a loja vazia. |
+
+## 🏗️ Arquitetura
+
+```mermaid
+flowchart LR
+    CAM["📷 Câmera<br/>webcam · RTSP · arquivo"] --> VIS["Visão local<br/>movimento → pessoa → zonas"]
+    VIS -- eventos de cena --> BRAIN["🧠 Brain<br/>regras e ferramentas"]
+    BRAIN --> NOTIFY["🔔 Avisos"]
+    BRAIN -- estado da esfera --> PAGE["🖥️ Chrome em quiosque"]
+    PAGE <-- "WebRTC (áudio)" --> RT["☁️ OpenAI Realtime"]
+    BRAIN <-- "canal de controle" --> RT
 ```
-Câmera (webcam | RTSP | arquivo) ─► detecção local (movimento → pessoa → zonas) ─► Brain ─► avisos
-                                                                                   │
-Chrome em quiosque ◄── WebSocket (estado da esfera, comandos) ─────────────────────┤
-microfone (cancelamento de eco) ⇄ WebRTC ⇄ OpenAI Realtime ◄── canal de controle ──┘
+
+- **Voz:** o Chrome manda a oferta WebRTC ao backend, e o backend chama a OpenAI. Assim a chave da API fica só no servidor. O áudio da IA é tocado pela própria página, então o cancelador de eco do Chrome o remove do microfone e a conversa pode ser simultânea.
+- **Visão:** um filtro de movimento evita rodar o detector à toa. Um tracker associa as pessoas entre quadros, e o ponto dos pés de cada uma define em que zona ela está.
+- **Brain:** transforma eventos de cena ("entrou", "no balcão", "parado") em ações: abrir a sessão de voz, cumprimentar, mandar uma imagem para a IA, disparar avisos.
+
+## 🧠 Como a IARA decide
+
+| Situação | Ação |
+|---|---|
+| Pessoa entra pela zona da porta | Abre a sessão de voz e cumprimenta (com cooldown). Quem só passa na frente da porta não é cumprimentado |
+| Cliente na zona do balcão fala | Manda uma imagem da cena (só no primeiro turno) e responde |
+| Alguém fala fora do balcão | Ignora (não responde a conversas paralelas) |
+| A IA precisa olhar algo | Ferramenta `ver_camera`: manda uma imagem nova |
+| Cliente pede uma pessoa ou a IA não sabe | Ferramenta `chamar_atendente` → aviso |
+| Cliente no balcão há mais de `unattended_s` sem ninguém na zona do atendente | Aviso `cliente_esperando` |
+| Pessoa parada há mais de `lingering_s` fora do balcão | Aviso `pessoa_parada` |
+| Loja vazia por `session_idle_close_s` | Fecha a sessão de voz (para de gastar) |
+
+No MVP, os avisos aparecem no console como `[AVISO ...]`.
+
+## 🚀 Começando
+
+### Pré-requisitos
+
+- Windows 10/11 (ou Linux) com Python 3.11+ e [uv](https://docs.astral.sh/uv/)
+- Google Chrome
+- Webcam ou câmera IP com RTSP
+- Chave da [OpenAI API](https://platform.openai.com/api-keys) com acesso ao Realtime e créditos
+
+### Instalação
+
+```powershell
+# 1. uv (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+
+# 2. dependências e modelo de detecção
+uv sync
+uv run python scripts/download_model.py
+
+# 3. configuração local (esses arquivos não vão para o git)
+copy .env.example .env                 # preencha OPENAI_API_KEY
+copy config.example.yaml config.yaml   # dados da loja e zonas
+
+# 4. backend
+uv run python -m iara
 ```
 
-- **Voz:** OpenAI Realtime (`gpt-realtime-2.1-mini`) via WebRTC direto do Chrome. O áudio da IA é tocado pela própria página, então o cancelador de eco do Chrome o remove do microfone e a conversa pode ser simultânea. A chave da API fica só no backend: o Chrome manda a oferta WebRTC ao backend, e o backend chama a OpenAI.
-- **Visão:** detecção de pessoas local e barata (YOLOX-nano via ONNX Runtime, só CPU), a 2 quadros por segundo. Imagens só vão para a IA quando há cliente no balcão ou quando o modelo pede (`ver_camera`).
-- **Interface:** esfera animada em tela cheia que muda com o estado: ociosa, ouvindo, pensando e falando. Ela reage à amplitude real do áudio.
+> No Windows, prefira `uv run python -m iara` a `uv run iara`: o Controle Inteligente de Aplicativos pode bloquear o executável gerado pelo uv.
 
-## Rodar o MVP (Windows)
+Em outro terminal, abra a página em modo quiosque:
 
-1. Instale o [uv](https://docs.astral.sh/uv/) (PowerShell):
-   ```powershell
-   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-   ```
-2. Na pasta do projeto:
-   ```powershell
-   uv sync
-   uv run python scripts/download_model.py
-   copy .env.example .env          # preencha OPENAI_API_KEY
-   copy config.example.yaml config.yaml   # dados da loja e zonas
-   uv run python -m iara   # no Windows, "uv run iara" pode ser bloqueado pelo Controle Inteligente de Aplicativos
-   ```
-3. Em outro terminal, abra a página em modo quiosque:
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File scripts\run_kiosk.ps1
-   ```
-   Na primeira vez, permita o microfone (o perfil dedicado guarda a permissão). Para sair do quiosque: `Alt+F4`.
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run_kiosk.ps1
+```
 
-**Teste rápido na mesa com a webcam:**
+Na primeira vez, permita o microfone (o perfil dedicado do Chrome guarda a permissão). Para sair do quiosque: `Alt+F4`.
+
+### Teste rápido na mesa com a webcam
+
 1. No `.env`, coloque `CONFIG_FILE=config.webcam.yaml`. Nesse preset, ela cumprimenta quem aparecer por cerca de 1 s e conversa com quem estiver na imagem.
 2. Rode `powershell -ExecutionPolicy Bypass -File scripts\dev_windows.ps1`. Ele sobe o backend e abre o Chrome com o painel de debug.
 
-Para testar sem quiosque, abra `http://localhost:8000/?debug=1` no Chrome. O painel de debug mostra:
+### Painel de debug
+
+Abra `http://localhost:8000/?debug=1` no Chrome. O painel mostra:
+
 - botões para simular os estados da esfera;
 - **Conversar agora**, que abre a conversa por voz sem depender da câmera;
 - a imagem da câmera com zonas e pessoas desenhadas, para calibrar o `config.yaml`;
-- o `/healthz` (vídeo, página, sessão de voz, tokens e custo do dia).
+- o `/healthz`: vídeo, página, sessão de voz, tokens e custo do dia.
 
-> No Linux, o equivalente é `scripts/run_kiosk.sh`. No WSL2, a webcam não aparece por padrão; use `VIDEO_SOURCE=file` ou `none`, ou rode no Windows.
+> No Linux, o equivalente do quiosque é `scripts/run_kiosk.sh`. No WSL2 a webcam não aparece por padrão: use `VIDEO_SOURCE=file` ou `none`, ou rode no Windows.
 
-## Trocar para a câmera IP (RTSP)
+## 📹 Câmera IP (RTSP)
 
 1. No app Mercusys: **Configurações avançadas → Conta da câmera**, crie usuário e senha RTSP.
-2. Descubra o IP da câmera (no app ou no roteador) e, de preferência, fixe-o no roteador (reserva de DHCP).
+2. Descubra o IP da câmera (no app ou no roteador) e, de preferência, fixe-o com uma reserva de DHCP.
 3. **Teste no VLC antes:** *Mídia → Abrir fluxo de rede* → `rtsp://usuario:senha@IP:554/stream2`. Se abrir no VLC, abre na IARA.
 4. No `.env`:
    ```ini
@@ -58,19 +128,26 @@ Para testar sem quiosque, abra `http://localhost:8000/?debug=1` no Chrome. O pai
    RTSP_PASSWORD=senha
    RTSP_PATH=stream2        # baixa resolução, suficiente para detecção
    ```
-   Ou só `RTSP_URL=rtsp://usuario:senha@IP:554/stream2`. A Tapo C500 usa o mesmo formato de URL.
-5. Recalibre as zonas no `config.yaml` com `?debug=1`. A câmera fica no canto alto direito, então a porta e o balcão aparecem em posições diferentes das da webcam.
+   Ou só `RTSP_URL=rtsp://usuario:senha@IP:554/stream2`. A Tapo C500 usa o mesmo formato.
+5. Recalibre as zonas no `config.yaml` com `?debug=1`: a posição da câmera muda onde a porta e o balcão aparecem na imagem.
 
-A conexão RTSP usa TCP (mais estável em Wi-Fi) e reconecta sozinha se a câmera cair. A senha aparece mascarada nos logs.
+A conexão RTSP usa TCP (mais estável em Wi-Fi), reconecta sozinha se a câmera cair e mascara a senha nos logs.
 
-**Simular o stream sem a câmera:** `VIDEO_SOURCE=file` e `VIDEO_FILE=algum_video.mp4` (lido em loop, pelo mesmo caminho de código do RTSP). Também dá para usar um RTSP real local com [mediamtx](https://github.com/bluenviron/mediamtx):
+<details>
+<summary><b>Simular o stream sem a câmera</b></summary>
+
+Com `VIDEO_SOURCE=file` e `VIDEO_FILE=algum_video.mp4`, o vídeo é lido em loop pelo mesmo caminho de código do RTSP. Para um RTSP real local, use o [mediamtx](https://github.com/bluenviron/mediamtx):
+
 ```bash
 ./mediamtx &
 ffmpeg -re -stream_loop -1 -i video.mp4 -c copy -f rtsp -rtsp_transport tcp rtsp://127.0.0.1:8554/stream2
 # .env: VIDEO_SOURCE=rtsp  RTSP_URL=rtsp://127.0.0.1:8554/stream2
 ```
+</details>
 
-## Variáveis de ambiente (`.env`)
+## ⚙️ Configuração
+
+### Variáveis de ambiente (`.env`)
 
 | Variável | Padrão | Descrição |
 |---|---|---|
@@ -91,9 +168,11 @@ ffmpeg -re -stream_loop -1 -i video.mp4 -c copy -f rtsp -rtsp_transport tcp rtsp
 | `CONFIG_FILE` | `config.yaml` | Dados da loja, zonas, tempos e textos |
 | `LOG_LEVEL` | `INFO` | Nível de log |
 
-## `config.yaml`
+O valor do `.env` só substitui o padrão quando a variável está definida. Uma variável de ambiente do sistema tem prioridade sobre o `.env`. O `.env` é lido a partir da pasta onde o comando é executado.
 
-- **`store`:** nome, horário, endereço, produtos e preços, outras informações. É o que a IA sabe responder; ela não inventa o que não está aqui.
+### `config.yaml`
+
+- **`store`:** nome, horário, endereço, produtos e preços, outras informações. É tudo o que a IA sabe responder; ela não inventa o que não está aqui.
 - **`zones`:** polígonos `door`, `counter` e `staff` em coordenadas de 0 a 1 (x da esquerda para a direita, y de cima para baixo). Vale o ponto dos pés de cada pessoa.
 - **`detection`:** limiares, tempo para "pessoa parada" (`lingering_s`) e para "cliente sem atendimento" (`unattended_s`).
 - **`brain`:**
@@ -101,23 +180,22 @@ ffmpeg -re -stream_loop -1 -i video.mp4 -c copy -f rtsp -rtsp_transport tcp rtsp
   - `alert_cooldown_s`: intervalo mínimo entre avisos do mesmo tipo;
   - `session_idle_close_s`: fecha a sessão de voz com a loja vazia.
 - **`texts.greeting`:** `{periodo}` vira "Bom dia", "Boa tarde" ou "Boa noite"; `{loja}` vira o nome da loja.
+- **`prices`:** preços por token usados na estimativa de custo.
 
-## Como a IARA decide
+## 🔒 Privacidade (LGPD)
 
-| Situação | Ação |
-|---|---|
-| Pessoa entra pela zona da porta | Abre a sessão de voz e cumprimenta (com cooldown); quem só passa na frente da porta não é cumprimentado |
-| Cliente na zona do balcão fala | Manda uma imagem da cena (só no primeiro turno) e responde |
-| Alguém fala fora do balcão | Ignora (não responde a conversas paralelas) |
-| A IA precisa olhar algo | Ferramenta `ver_camera`: manda uma imagem nova |
-| Cliente pede uma pessoa ou a IA não sabe | Ferramenta `chamar_atendente` → aviso |
-| Cliente no balcão há mais de `unattended_s` sem ninguém na zona do atendente | Aviso `cliente_esperando` |
-| Pessoa parada há mais de `lingering_s` fora do balcão | Aviso `pessoa_parada` |
-| Loja vazia por `session_idle_close_s` | Fecha a sessão de voz (para de gastar) |
+- Nada é gravado: nem áudio, nem vídeo, nem as imagens enviadas à IA (ficam só em memória).
+- Transcrições não são pedidas nem registradas. Os logs têm só tipos de evento e contagens de tokens.
+- A imagem de calibração (`/api/debug/frame.jpg`) é gerada na hora, e o servidor escuta só em `127.0.0.1`.
+- A IA é instruída a não descrever nem tentar identificar pessoas.
+- A chave da OpenAI e as credenciais da câmera ficam só no `.env`, que não vai para o git.
+- Lembre-se de colocar o aviso de monitoramento na loja.
 
-No MVP, os avisos aparecem no console como `[AVISO ...]`.
+## 💸 Custos
 
-## Testes
+Cada resposta registra no log os tokens (texto, áudio, imagem, cache) e o custo estimado do dia, com preços configuráveis em `prices` no `config.yaml`. Os valores vêm da tabela da OpenAI de outubro de 2026; confira se mudaram. A sessão de voz só fica aberta com gente na loja.
+
+## 🧪 Testes
 
 ```bash
 uv run pytest                 # sem hardware: Brain, eventos, tracker, zonas, mapeamento Realtime, vídeo de arquivo, servidor
@@ -125,46 +203,14 @@ uv run pytest -m integration  # RTSP real: precisa do mediamtx em localhost:8554
 uv run ruff check
 ```
 
-## Desenvolvimento (WSL + Windows)
-
-O código mora numa pasta só, `C:\Users\Caiom\code\iara`. No WSL, `~/code/iara` é um atalho para `/mnt/c/Users/Caiom/code/iara`, então editar de um lado é editar do outro.
-
-Cada sistema tem o próprio ambiente Python; os dois não podem dividir o mesmo `.venv`.
-- **Windows:** usa o `.venv` padrão. Rode com `scripts\dev_windows.ps1` ou `uv run python -m iara`, sem `UV_PROJECT_ENVIRONMENT` definido.
-- **WSL** (testes, edição, git): usa um ambiente fora da pasta do projeto. Antes de usar `uv`, rode:
-  ```bash
-  export UV_PROJECT_ENVIRONMENT=~/.venvs/iara UV_LINK_MODE=copy
-  ```
-  O Claude Code já recebe essas variáveis por `.claude/settings.local.json`.
-
-O git roda pelo WSL. O `.gitattributes` fixa o fim de linha em LF, e `core.fileMode=false` evita que o `/mnt/c` marque arquivos como modificados por causa de permissões.
-
-## Privacidade (LGPD)
-
-- Nada é gravado: nem áudio, nem vídeo, nem as imagens enviadas à IA (ficam só em memória).
-- Transcrições não são pedidas nem registradas. Os logs têm só tipos de evento e contagens de tokens.
-- A imagem de calibração (`/api/debug/frame.jpg`) é gerada na hora e o servidor escuta só em `127.0.0.1`.
-- A IA é instruída a não descrever nem tentar identificar pessoas.
-- Lembre-se do aviso de monitoramento na loja.
-
-## Custos
-
-Cada resposta registra no log os tokens (texto, áudio, imagem, cache) e o custo estimado do dia, com preços configuráveis em `prices` no `config.yaml`. Os valores vêm da tabela da OpenAI de outubro de 2026; confira se mudaram. A sessão de voz só fica aberta com gente na loja.
-
-## Problemas comuns
-
-- **A IA se ouve (eco):** confirme que o som sai pelo Chrome da página da IARA. Se o eco persistir com as caixas altas, use `AUDIO_DUPLEX=half`.
-- **"Toque para ativar o som":** o Chrome bloqueou o áudio automático. O `run_kiosk` usa `--autoplay-policy=no-user-gesture-required`.
-- **"Microfone indisponível":** permita o microfone para `localhost` nas configurações do Chrome (perfil do quiosque).
-- **Webcam não abre no Windows:** teste `WEBCAM_BACKEND=dshow` ou outro `WEBCAM_INDEX`.
-
-## Estrutura
+## 📁 Estrutura
 
 ```
 src/iara/
   app.py              composição: único lugar que escolhe implementações pela configuração
   config.py           .env + config.yaml
   domain.py           Frame, BBox, Track, eventos de cena
+  usage.py            contagem de tokens e custo do dia
   video/              VideoSource + OpenCvSource (webcam/RTSP/arquivo, reconexão)
   vision/             movimento, detector YOLOX, tracker, zonas, EventDetector, pipeline
   voice/              VoiceSession (interface neutra) + OpenAI Realtime + fake para testes
@@ -172,4 +218,33 @@ src/iara/
   notify/             Notifier (console; depois WhatsApp/Telegram)
   web/                FastAPI (página, WebSocket, oferta WebRTC, debug) + página estática
     static/orb.js     a esfera: componente isolado (setState/setLevel), troque o visual aqui
+scripts/              download do modelo, quiosque (Windows/Linux), ambiente de dev no Windows
+tests/                testes sem hardware + integração RTSP opcional
 ```
+
+## 🛠️ Problemas comuns
+
+- **A IA se ouve (eco):** confirme que o som sai pelo Chrome da página da IARA. Se o eco persistir com caixas de som altas, use `AUDIO_DUPLEX=half`.
+- **"Toque para ativar o som":** o Chrome bloqueou o áudio automático. O `run_kiosk` usa `--autoplay-policy=no-user-gesture-required`.
+- **"Microfone indisponível":** permita o microfone para `localhost` nas configurações do Chrome (perfil do quiosque).
+- **Webcam não abre no Windows:** teste `WEBCAM_BACKEND=dshow` ou outro `WEBCAM_INDEX`.
+
+<details>
+<summary><b>Desenvolvendo no WSL e no Windows ao mesmo tempo</b></summary>
+
+O código fica numa pasta só, no disco do Windows, e o WSL acessa a mesma pasta por `/mnt/c/...` (ou por um link simbólico). Cada sistema precisa do próprio ambiente Python, porque os dois não podem dividir o mesmo `.venv`:
+
+- **Windows:** usa o `.venv` padrão. Rode com `scripts\dev_windows.ps1` ou `uv run python -m iara`, sem `UV_PROJECT_ENVIRONMENT` definido.
+- **WSL** (testes, edição, git): use um ambiente fora da pasta do projeto:
+  ```bash
+  export UV_PROJECT_ENVIRONMENT=~/.venvs/iara UV_LINK_MODE=copy
+  ```
+
+O `.gitattributes` fixa o fim de linha em LF, e `git config core.fileMode false` evita que o `/mnt/c` marque arquivos como modificados por causa de permissões.
+</details>
+
+## 🗺️ Próximos passos
+
+- [ ] Avisos pelo WhatsApp ou Telegram (hoje só no console)
+- [ ] Consulta de produtos e preços por ferramenta, para catálogos maiores
+- [ ] Integração com o PDV para montar a pré-venda por voz
