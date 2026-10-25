@@ -1,0 +1,27 @@
+# Preset para testar na mesa com a webcam do PC (CONFIG_FILE=config.webcam.yaml).
+# Cumprimenta quem aparecer na frente da câmera e conversa com quem estiver na imagem.
+
+store:
+  name: "Loja Exemplo"
+  hours: "Segunda a sexta, das 9h às 18h; sábado, das 9h às 13h. Fechado aos domingos."
+  address: "Rua Exemplo, 123"
+  products:
+    - { name: "Café coado", price: "R$ 5,00" }
+    - { name: "Pão de queijo", price: "R$ 4,50", notes: "sai quentinho a cada hora" }
+  extra_info: "Aceitamos Pix, débito e crédito."
+
+zones:
+  door: []                                                    # não usada no modo appear
+  counter: [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]   # a imagem toda é "balcão"
+  staff: []
+
+detection:
+  entry_mode: appear      # cumprimenta quem ficar ~1 s visível
+  entry_confirm_s: 1.0
+  track_max_missed_s: 4   # sair do quadro por menos que isso não conta como sair
+  unattended_s: 3600      # sem alerta de "cliente esperando" na mesa
+  lingering_s: 3600
+
+brain:
+  greet_cooldown_s: 20    # saia da frente da câmera, espere 20 s e volte para ser cumprimentado de novo
+  session_idle_close_s: 30

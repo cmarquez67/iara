@@ -1,0 +1,37 @@
+# Copie para config.yaml e ajuste. Coordenadas das zonas são normalizadas (0..1):
+# x = 0 na borda esquerda da imagem, y = 0 no topo. A pessoa "está" numa zona
+# quando o ponto dos pés (base da caixa detectada) cai dentro do polígono.
+# Dica: abra http://localhost:8000/?debug=1 para ver as zonas sobre a câmera.
+
+store:
+  name: "Loja Exemplo"
+  hours: "Segunda a sexta, das 9h às 18h; sábado, das 9h às 13h. Fechado aos domingos."
+  address: "Rua Exemplo, 123"
+  products:
+    - { name: "Café coado", price: "R$ 5,00" }
+    - { name: "Pão de queijo", price: "R$ 4,50", notes: "sai quentinho a cada hora" }
+  extra_info: "Aceitamos Pix, débito e crédito."
+
+zones:
+  # Exemplo para webcam de frente: porta à direita, balcão embaixo à esquerda.
+  door:    [[0.70, 0.30], [1.00, 0.30], [1.00, 1.00], [0.70, 1.00]]
+  counter: [[0.00, 0.55], [0.55, 0.55], [0.55, 1.00], [0.00, 1.00]]
+  staff:   [[0.00, 0.00], [0.25, 0.00], [0.25, 0.50], [0.00, 0.50]]
+
+detection:
+  score_threshold: 0.45
+  motion_threshold: 0.01
+  lingering_s: 120        # pessoa parada fora do balcão por mais que isso -> aviso
+  unattended_s: 45        # cliente no balcão sem ninguém na zona do atendente -> aviso
+  counter_vacate_s: 3
+
+brain:
+  greet_cooldown_s: 60        # intervalo mínimo entre saudações
+  alert_cooldown_s: 300       # intervalo mínimo entre avisos do mesmo tipo
+  session_idle_close_s: 60    # fecha a sessão de voz após loja vazia por N s
+  snapshot_max_side: 640
+
+texts:
+  # {periodo} vira "Bom dia" / "Boa tarde" / "Boa noite"; {loja} vira store.name
+  greeting: "{periodo}, seja bem-vindo à {loja}!"
+  extra_instructions: ""

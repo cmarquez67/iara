@@ -1,0 +1,24 @@
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# segredos e configuração local da loja
+.env
+config.yaml
+
+# modelos baixados (scripts/download_model.py)
+models/*.onnx
+models/*.part
+
+# imagens/vídeos de teste locais (LGPD: nada de gravação no repositório)
+tests/fixtures/*.jpg
+tests/fixtures/*.mp4
+
+# configuração local do Claude Code (ambiente Python do WSL)
+.claude/settings.local.json

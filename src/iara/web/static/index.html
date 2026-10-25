@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>IARA</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <canvas id="orb" aria-hidden="true"></canvas>
+  <p id="caption" role="status" aria-live="polite" data-visible="false"></p>
+
+  <audio id="voice" autoplay></audio>
+
+  <div id="offline" hidden>Sem conexão com o sistema. Tentando de novo…</div>
+  <button id="unlock" hidden>Toque para ativar o som</button>
+
+  <aside id="debug" hidden>
+    <div class="states"></div>
+    <button class="talk">Conversar agora</button>
+    <img alt="Câmera com zonas" hidden>
+    <pre></pre>
+  </aside>
+
+  <script type="module" src="/static/main.js"></script>
+</body>
+</html>
