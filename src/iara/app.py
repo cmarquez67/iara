@@ -12,6 +12,7 @@ from iara.brain.brain import Brain
 from iara.config import AppConfig, Settings, load_app_config
 from iara.domain import SceneEvent
 from iara.notify.console import ConsoleNotifier
+from iara.pdv.catalog import PdvCatalog
 from iara.usage import UsageTracker
 from iara.video.opencv_source import create_video_source
 from iara.vision.detector import YoloxOnnxDetector
@@ -55,11 +56,11 @@ class Runtime:
     pipeline: ScenePipeline | None = None
     _tasks: list[asyncio.Task[None]] = field(default_factory=list)
 
-    def snapshot(self) -> bytes | None:
+    def snapshot(self, max_side: int) -> bytes | None:
         frame = self.pipeline.source.latest() if self.pipeline else None
         if frame is None:
             return None
-        return encode_jpeg(frame.image, self.cfg.brain.snapshot_max_side)
+        return encode_jpeg(frame.image, max_side)
 
     async def start(self) -> None:
         self._tasks.append(asyncio.create_task(supervise("brain", lambda: self.brain.run(self.scene_events))))
@@ -88,8 +89,25 @@ def build_runtime(settings: Settings) -> Runtime:
     usage = UsageTracker(cfg.prices)
     scene_events: asyncio.Queue[SceneEvent] = asyncio.Queue(maxsize=100)
 
+    catalog: PdvCatalog | None = None
+    if cfg.pdv.enabled:
+        catalog = PdvCatalog(cfg.pdv)
+        try:
+            log.info("Consulta ao PDV ativa: %d produtos", len(catalog.products()))
+        except OSError as exc:
+            log.error("Catálogo do PDV indisponível (%s). Consulta de produtos desativada.", exc)
+            catalog = None
+
     runtime_ref: list[Runtime] = []
-    brain = Brain(cfg, voice, ConsoleNotifier(), hub, usage, snapshot=lambda: runtime_ref[0].snapshot())
+    brain = Brain(
+        cfg,
+        voice,
+        ConsoleNotifier(),
+        hub,
+        usage,
+        snapshot=lambda side: runtime_ref[0].snapshot(side),
+        catalog=catalog,
+    )
     runtime = Runtime(settings, cfg, hub, voice, brain, usage, scene_events)
     runtime_ref.append(runtime)
 

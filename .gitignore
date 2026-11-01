@@ -12,6 +12,13 @@ wheels/
 .env
 config.yaml
 
+# dados do PDV: o cadastro real nunca vai para o repositório
+dados/
+*.dbf
+*.DBF
+*.fpt
+*.cdx
+
 # modelos baixados (scripts/download_model.py)
 models/*.onnx
 models/*.part

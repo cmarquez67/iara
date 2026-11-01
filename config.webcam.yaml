@@ -23,5 +23,5 @@ detection:
   lingering_s: 3600
 
 brain:
-  greet_cooldown_s: 20    # saia da frente da câmera, espere 20 s e volte para ser cumprimentado de novo
+  greet_cooldown_s: 20    # saia da frente da câmera por 10 s (greet_after_empty_s) e volte para ser cumprimentado de novo
   session_idle_close_s: 30

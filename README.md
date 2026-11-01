@@ -51,11 +51,12 @@ flowchart LR
 
 | Situação | Ação |
 |---|---|
-| Pessoa entra pela zona da porta | Abre a sessão de voz e cumprimenta (com cooldown). Quem só passa na frente da porta não é cumprimentado |
+| Pessoa entra pela zona da porta | Abre a sessão de voz e cumprimenta, uma vez por visita e nunca no meio de uma conversa. Quem só passa na frente da porta não é cumprimentado |
 | Cliente na zona do balcão fala | Manda uma imagem da cena (só no primeiro turno) e responde |
 | Alguém fala fora do balcão | Ignora (não responde a conversas paralelas) |
-| A IA precisa olhar algo | Ferramenta `ver_camera`: manda uma imagem nova |
+| A IA precisa olhar algo (ex.: produto na mão do cliente) | Ferramenta `ver_camera`: manda uma imagem nova em alta resolução, para ler etiquetas |
 | Cliente pede uma pessoa ou a IA não sabe | Ferramenta `chamar_atendente` → aviso |
+| Cliente pergunta se tem um produto ou quanto custa | Ferramenta `consultar_produto` → busca no cadastro do PDV (se `pdv.enabled`) |
 | Cliente no balcão há mais de `unattended_s` sem ninguém na zona do atendente | Aviso `cliente_esperando` |
 | Pessoa parada há mais de `lingering_s` fora do balcão | Aviso `pessoa_parada` |
 | Loja vazia por `session_idle_close_s` | Fecha a sessão de voz (para de gastar) |
@@ -173,13 +174,18 @@ O valor do `.env` só substitui o padrão quando a variável está definida. Uma
 ### `config.yaml`
 
 - **`store`:** nome, horário, endereço, produtos e preços, outras informações. É tudo o que a IA sabe responder; ela não inventa o que não está aqui.
+  - `layout`: onde fica cada tipo de produto. A IA usa para orientar o cliente no balcão, priorizando pontos de referência e dizendo de que ponto de vista é a esquerda/direita.
+  - `price_labels`: como o cliente acha o preço na loja (etiquetas, plaquinhas nos expositores). Se preenchido, quando o cliente mostra um produto a IA olha a câmera em alta resolução, tenta ler a etiqueta e, com o PDV ligado, confirma o preço no cadastro. Se não conseguir ler, orienta o cliente a achar a etiqueta ou a plaquinha, sem nunca estimar preço pela aparência. Para ler etiquetas, a câmera do balcão precisa de boa resolução (ex.: `RTSP_PATH=stream1`).
 - **`zones`:** polígonos `door`, `counter` e `staff` em coordenadas de 0 a 1 (x da esquerda para a direita, y de cima para baixo). Vale o ponto dos pés de cada pessoa.
 - **`detection`:** limiares, tempo para "pessoa parada" (`lingering_s`) e para "cliente sem atendimento" (`unattended_s`).
 - **`brain`:**
   - `greet_cooldown_s`: intervalo mínimo entre saudações;
+  - `greet_after_empty_s`: uma saudação por visita. Depois de cumprimentar, só cumprimenta de novo quando a loja fica vazia por esse tempo, o que evita repetir a saudação quando o detector "pisca" ou vê pessoas fantasmas. Com outro cliente já na loja, quem entra não é cumprimentado; `0` desliga;
+  - `greet_quiet_s`: não cumprimenta se houve conversa nesse intervalo;
   - `alert_cooldown_s`: intervalo mínimo entre avisos do mesmo tipo;
   - `session_idle_close_s`: fecha a sessão de voz com a loja vazia.
-- **`texts.greeting`:** `{periodo}` vira "Bom dia", "Boa tarde" ou "Boa noite"; `{loja}` vira o nome da loja.
+- **`texts.greeting`:** a saudação, dita uma vez por visita. `{periodo}` vira "Bom dia", "Boa tarde" ou "Boa noite"; `{loja}` vira o nome da loja. O padrão também convida o cliente a falar com a IA na câmera do caixa.
+- **`pdv`:** consulta de produtos e preços num cache DBF local que o próprio PDV mantém. `dados_dir` e `products_file` dizem onde está o arquivo, `fields` mapeia os nomes das colunas de código, descrição, preço e status, e `active_status` é o valor que marca um produto como ativo. É **somente leitura**: nada é gravado no PDV. O estoque do PDV não é usado, e a IA não promete disponibilidade. `max_results` limita quantos itens vão para a IA; acima disso ela recebe a faixa de preço. `exclude` lista tipos do cadastro que não estão nesta loja (ex.: `["SAZONAIS"]`), que a IA nunca oferece.
 - **`prices`:** preços por token usados na estimativa de custo.
 
 ## 🔒 Privacidade (LGPD)
@@ -198,7 +204,7 @@ Cada resposta registra no log os tokens (texto, áudio, imagem, cache) e o custo
 ## 🧪 Testes
 
 ```bash
-uv run pytest                 # sem hardware: Brain, eventos, tracker, zonas, mapeamento Realtime, vídeo de arquivo, servidor
+uv run pytest                 # sem hardware: Brain, eventos, tracker, zonas, catálogo do PDV, mapeamento Realtime, vídeo de arquivo, servidor
 uv run pytest -m integration  # RTSP real: precisa do mediamtx em localhost:8554 e ffmpeg
 uv run ruff check
 ```
@@ -215,6 +221,7 @@ src/iara/
   vision/             movimento, detector YOLOX, tracker, zonas, EventDetector, pipeline
   voice/              VoiceSession (interface neutra) + OpenAI Realtime + fake para testes
   brain/              regras, prompts em pt-BR, ferramentas
+  pdv/                leitura do catálogo do PDV (DBF local, somente leitura)
   notify/             Notifier (console; depois WhatsApp/Telegram)
   web/                FastAPI (página, WebSocket, oferta WebRTC, debug) + página estática
     static/orb.js     a esfera: componente isolado (setState/setLevel), troque o visual aqui

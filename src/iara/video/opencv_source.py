@@ -46,10 +46,12 @@ class OpenCvSource:
         backend: int = cv2.CAP_ANY,
         loop_file: bool = False,
         max_backoff_s: float = 30.0,
+        size: tuple[int, int] | None = None,
     ) -> None:
         self.name = name
         self._target = target
         self._backend = backend
+        self._size = size
         self._loop_file = loop_file
         self._max_backoff_s = max_backoff_s
         self._lock = threading.Lock()
@@ -90,7 +92,12 @@ class OpenCvSource:
                 yield frame
 
     def _open(self) -> cv2.VideoCapture:
-        return cv2.VideoCapture(self._target, self._backend)
+        cap = cv2.VideoCapture(self._target, self._backend)
+        if self._size and cap.isOpened():
+            # Webcams abrem em 640x480 por padrão; mais resolução permite ler etiquetas de preço.
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self._size[0])
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self._size[1])
+        return cap
 
     def _run(self) -> None:
         backoff = 1.0
@@ -134,7 +141,8 @@ def create_video_source(settings: Settings) -> OpenCvSource | None:
             return None
         case VideoSourceKind.WEBCAM:
             backend = _BACKENDS.get(settings.webcam_backend.lower(), cv2.CAP_ANY)
-            return OpenCvSource(settings.webcam_index, "webcam", backend=backend)
+            size = (settings.webcam_width, settings.webcam_height) if settings.webcam_width else None
+            return OpenCvSource(settings.webcam_index, "webcam", backend=backend, size=size)
         case VideoSourceKind.RTSP:
             return OpenCvSource(settings.resolved_rtsp_url(), "rtsp", backend=cv2.CAP_FFMPEG)
         case VideoSourceKind.FILE:

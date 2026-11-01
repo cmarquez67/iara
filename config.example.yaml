@@ -11,6 +11,14 @@ store:
     - { name: "Café coado", price: "R$ 5,00" }
     - { name: "Pão de queijo", price: "R$ 4,50", notes: "sai quentinho a cada hora" }
   extra_info: "Aceitamos Pix, débito e crédito."
+  # Como o cliente acha o preço na loja. Se preenchido, a IA tenta ler a etiqueta do produto que o
+  # cliente mostra na câmera e, se não conseguir, orienta o cliente a achar o preço desse jeito.
+  price_labels: "Todos os produtos têm etiqueta com o preço, e os expositores têm plaquinhas com o preço."
+  # Onde fica cada coisa, para a IA orientar quem está no balcão. Prefira pontos de referência e,
+  # ao usar esquerda/direita, diga de que ponto de vista (de quem entra, de frente para o caixa...).
+  layout: |
+    - Bebidas: na geladeira atrás do caixa.
+    - Salgados: na vitrine do balcão.
 
 zones:
   # Exemplo para webcam de frente: porta à direita, balcão embaixo à esquerda.
@@ -27,11 +35,28 @@ detection:
 
 brain:
   greet_cooldown_s: 60        # intervalo mínimo entre saudações
+  greet_after_empty_s: 10     # uma saudação por visita: só cumprimenta de novo após a loja vazia por N s (0 desliga)
+  greet_quiet_s: 30           # não cumprimenta se houve conversa nos últimos N s
   alert_cooldown_s: 300       # intervalo mínimo entre avisos do mesmo tipo
   session_idle_close_s: 60    # fecha a sessão de voz após loja vazia por N s
-  snapshot_max_side: 640
+  snapshot_max_side: 640          # imagem automática do primeiro turno no balcão
+  product_snapshot_max_side: 1280 # ver_camera: alta resolução para ler etiquetas de preço
+
+pdv:
+  # Consulta de produtos/preços no PDV (somente leitura de um cache DBF local do caixa).
+  enabled: false
+  dados_dir: dados/pdv         # pasta onde o PDV mantém o arquivo
+  products_file: PRODUTOS.DBF
+  active_status: "1"           # valor da coluna status nos produtos ativos
+  fields:                      # nomes das colunas no arquivo
+    codigo: CODIGO
+    descricao: DESCRICAO
+    preco: PRECO
+    status: STATUS
+  max_results: 8          # acima disso a IA recebe só a faixa de preço
+  exclude: []             # tipos do cadastro que não estão nesta loja, ex.: ["SAZONAIS"]
 
 texts:
   # {periodo} vira "Bom dia" / "Boa tarde" / "Boa noite"; {loja} vira store.name
-  greeting: "{periodo}, seja bem-vindo à {loja}!"
+  greeting: "{periodo}, seja bem-vindo à {loja}! Se quiser tirar alguma dúvida, é só vir falar comigo na câmera do caixa."
   extra_instructions: ""

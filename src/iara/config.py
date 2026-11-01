@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     video_source: VideoSourceKind = VideoSourceKind.WEBCAM
     webcam_index: int = 0
     webcam_backend: str = "any"  # any | dshow | msmf | v4l2
+    webcam_width: int = 0  # 0 = resolução padrão da webcam (costuma ser 640x480)
+    webcam_height: int = 0
     rtsp_url: str = ""  # se preenchida, ignora os campos RTSP_* abaixo
     rtsp_host: str = ""
     rtsp_port: int = 554
@@ -81,6 +83,11 @@ class StoreInfo(BaseModel):
     address: str = ""
     products: list[Product] = Field(default_factory=list)
     extra_info: str = ""
+    # Como o cliente encontra o preço na loja (etiquetas, placas nos expositores...). Se preenchido,
+    # a IA tenta ler o preço do produto mostrado na câmera e, se não conseguir, orienta o cliente.
+    price_labels: str = ""
+    # Onde fica cada tipo de produto na loja, para a IA orientar o cliente que está no balcão.
+    layout: str = ""
 
 
 class ZonesConfig(BaseModel):
@@ -111,16 +118,44 @@ class DetectionConfig(BaseModel):
 
 class BrainConfig(BaseModel):
     greet_cooldown_s: float = 60.0
+    # Uma saudação por visita: só cumprimenta de novo depois de a loja ficar vazia por isso (0 desliga).
+    greet_after_empty_s: float = 10.0
+    greet_quiet_s: float = 30.0  # não cumprimenta se houve conversa há menos que isso
     alert_cooldown_s: float = 300.0
     session_idle_close_s: float = 60.0
     session_max_s: float = 25 * 60.0
     session_retry_s: float = 10.0
-    snapshot_max_side: int = 640
+    snapshot_max_side: int = 640  # imagem automática do primeiro turno (baixa resolução)
+    product_snapshot_max_side: int = 1280  # ver_camera: resolução para ler etiquetas de preço
 
 
 class TextsConfig(BaseModel):
-    greeting: str = "{periodo}, seja bem-vindo à {loja}!"
+    greeting: str = (
+        "{periodo}, seja bem-vindo à {loja}! "
+        "Se quiser tirar alguma dúvida, é só vir falar comigo na câmera do caixa."
+    )
     extra_instructions: str = ""
+
+
+class PdvFields(BaseModel):
+    """Nomes das colunas no arquivo de produtos do PDV."""
+
+    codigo: str = "CODIGO"
+    descricao: str = "DESCRICAO"
+    preco: str = "PRECO"
+    status: str = "STATUS"
+
+
+class PdvConfig(BaseModel):
+    """Consulta de produtos num cache DBF local do PDV (somente leitura)."""
+
+    enabled: bool = False
+    dados_dir: Path = Path("dados/pdv")
+    products_file: str = "PRODUTOS.DBF"
+    active_status: str = "1"  # valor da coluna de status nos produtos ativos
+    fields: PdvFields = Field(default_factory=PdvFields)
+    max_results: int = 8
+    exclude: list[str] = Field(default_factory=list)  # tipos do cadastro que não estão nesta loja
 
 
 class PricesConfig(BaseModel):
@@ -140,6 +175,7 @@ class AppConfig(BaseModel):
     detection: DetectionConfig = Field(default_factory=DetectionConfig)
     brain: BrainConfig = Field(default_factory=BrainConfig)
     texts: TextsConfig = Field(default_factory=TextsConfig)
+    pdv: PdvConfig = Field(default_factory=PdvConfig)
     prices: PricesConfig = Field(default_factory=PricesConfig)
 
 
