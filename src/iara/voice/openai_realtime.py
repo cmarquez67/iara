@@ -255,7 +255,7 @@ class OpenAIRealtimeSession:
     async def respond(self) -> None:
         await self._send({"type": "response.create"})
 
-    async def add_image(self, jpeg: bytes, caption: str) -> None:
+    async def add_image(self, jpeg: bytes, caption: str, high_detail: bool = False) -> None:
         data_url = "data:image/jpeg;base64," + base64.b64encode(jpeg).decode("ascii")
         await self._send(
             {
@@ -265,7 +265,11 @@ class OpenAIRealtimeSession:
                     "role": "user",
                     "content": [
                         {"type": "input_text", "text": caption},
-                        {"type": "input_image", "image_url": data_url, "detail": "low"},
+                        {
+                            "type": "input_image",
+                            "image_url": data_url,
+                            "detail": "high" if high_detail else "low",
+                        },
                     ],
                 },
             }

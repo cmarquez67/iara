@@ -12,6 +12,7 @@ class FakeVoiceSession:
 
     def __init__(self, fail_start: bool = False) -> None:
         self.calls: list[tuple[str, Any]] = []
+        self.images: list[tuple[bytes, bool]] = []  # (jpeg, high_detail)
         self.fail_start = fail_start
         self._active = False
         self._queue: asyncio.Queue[VoiceEvent] = asyncio.Queue()
@@ -42,8 +43,9 @@ class FakeVoiceSession:
     async def respond(self) -> None:
         self.calls.append(("respond", None))
 
-    async def add_image(self, jpeg: bytes, caption: str) -> None:
+    async def add_image(self, jpeg: bytes, caption: str, high_detail: bool = False) -> None:
         self.calls.append(("add_image", caption))
+        self.images.append((jpeg, high_detail))
 
     async def send_tool_result(self, call_id: str, output: str) -> None:
         self.calls.append(("tool_result", (call_id, output)))
